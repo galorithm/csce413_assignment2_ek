@@ -35,12 +35,26 @@ def scan_port(target, port, timeout=1.0):
     """
     try:
         # TODO: Create a socket
-        # TODO: Set timeout
-        # TODO: Try to connect to target:port
-        # TODO: Close the socket
-        # TODO: Return True if connection successful
 
-        pass  # Remove this and implement
+        # Assuming TCP (SOCK_STREAM) since most of the services I assume
+        # the assignment wants me to scan are TCP based (SSH, HTTP), not
+        # UDP
+        #
+        # AF_INET as the docker compose file's ips suggest that
+        # IPV4 is being used and not IPV6
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # TODO: Set timeout
+        s.settimeout(timeout)
+
+        # TODO: Try to connect to target:port
+        s.connect((target, port))
+
+        # TODO: Close the socket
+        s.close()
+
+        # TODO: Return True if connection successful
+        return True
 
     except (socket.timeout, ConnectionRefusedError, OSError):
         return False
