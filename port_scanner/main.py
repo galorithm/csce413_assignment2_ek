@@ -19,7 +19,7 @@ TODO for students:
 
 import socket
 import sys
-
+import argparse
 
 def scan_port(target, port, timeout=1.0):
     """
@@ -101,15 +101,41 @@ def main():
     # TODO: Call scan_range()
     # TODO: Display results
 
-    # Example usage (you should improve this):
-    if len(sys.argv) < 2:
-        print("Usage: python3 port_scanner_template.py <target>")
-        print("Example: python3 port_scanner_template.py 172.20.0.10")
-        sys.exit(1)
+    cli_arg_parser = argparse.ArgumentParser(
+            prog='port_scanner',
+            description='scan a bunch of ports'
+            )
 
-    target = sys.argv[1]
-    start_port = 1
-    end_port = 1024  # Scan first 1024 ports by default
+    cli_arg_parser.add_argument(
+            '--target',
+            required = True,
+            help = 'ip of the machine to scan ports for '
+            )
+
+    cli_arg_parser.add_argument(
+            "--ports",
+            default="1-1024",
+            help = 'range of ports to scan (default is 1 to 1024)'
+            )
+
+    cli_args = cli_arg_parser.parse_args();
+
+    # Parse the --target argument
+    target = cli_args.target
+
+    # Parse the --ports argument (by default 1-1024)
+    try:
+        split_ports_str = cli_args.ports.split("-")
+        start_port = int(split_ports_str[0])
+        end_port = int(split_ports_str[1])
+
+        if not (start_port >= 1 and
+                end_port <= 65535 and
+                start_port <= end_port):
+            raise ValueError
+
+    except Exception as err:
+        print(f"Bad port range: {cli_args.ports}")
 
     print(f"[*] Starting port scan on {target}")
 
