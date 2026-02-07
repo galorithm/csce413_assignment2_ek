@@ -83,9 +83,13 @@ def scan_range(target, start_port, end_port):
 
     for port in range(start_port, end_port + 1):
         # TODO: Scan this port
+        rc = scan_port(target, port)
+
         # TODO: If open, add to open_ports list
-        # TODO: Print progress (optional)
-        pass  # Remove this and implement
+        if (rc):
+            open_ports.append(port)
+
+            # TODO: Print progress (optional)
 
     return open_ports
 
