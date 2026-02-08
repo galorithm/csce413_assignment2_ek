@@ -21,8 +21,9 @@ import socket
 import sys
 import argparse
 import ipaddress
+import concurrent.futures
 
-def scan_port(host, port, timeout=1.0):
+def scan_port(host, port, timeout):
     """
     Scan a single port on the target host
 
@@ -61,7 +62,7 @@ def scan_port(host, port, timeout=1.0):
         return False
 
 
-def scan_range(host, start_port, end_port):
+def scan_range(host, start_port, end_port, timeout = 1.0, max_threads = 1):
     """
     Scan a range of ports on the target host
 
@@ -82,15 +83,27 @@ def scan_range(host, start_port, end_port):
     # Hint: Loop through port range and call scan_port()
     # Hint: Consider using threading for better performance
 
-    for port in range(start_port, end_port + 1):
-        # TODO: Scan this port
-        rc = scan_port(host, port)
+    with concurrent.futures.ThreadPoolExecutor(max_workers = max_threads) as executor:
+        # Submit/schedule all jobs right now, the thread pool mangaer
+        # (i.e. executor) will take care of ensuring there are max max_threads
+        # running at a time to handle different jobs
+        future_port_map = {}
+        for port in range(start_port, end_port + 1):
+            # scheduling scan_port(host, port, timeout)
+            future = executor.submit(scan_port, host, port, timeout)
+            future_port_map[future] = port
 
-        # TODO: If open, add to open_ports list
-        if (rc):
-            open_ports.append(port)
+        # This is a blocking loop !, will block till all futures report
+        # completion (or failure/exception)
+        for future in concurrent.futures.as_completed(future_port_map):
+            port = future_port_map[future]
 
-            # TODO: Print progress (optional)
+            try:
+                if future.result():
+                    open_ports.append(port)
+            except Exception as err:
+                print(f"future for port {port} reported exception {err} !")
+                pass
 
     return open_ports
 
@@ -141,6 +154,12 @@ def main():
             help = "timeout to wait for connection to each port"
             )
 
+    cli_arg_parser.add_argument(
+            "--threads",
+            default = "1",
+            help = "max thread count to query ports concurrently"
+            )
+
     cli_args = cli_arg_parser.parse_args();
 
     # Parse the --target argument
@@ -169,17 +188,25 @@ def main():
     # Parse the timeout argument
     try:
         timeout = float(cli_args.timeout)
-        if (timeout <= 0):
-            raise ValueError
+        if (timeout <= 0): raise ValueError
     except Exception:
         print(f"[!] Bad timeout: {cli_args.timeout}")
         sys.exit(1)
 
+    # Parse the threads argument
+    try:
+        max_threads = int(cli_args.threads)
+        if (max_threads < 0): raise ValueError
+    except Exception:
+        print(f"[!] Bad max thread count: {cli_args.threads}")
+        sys.exit(1)
+
+    # Iterate over hosts to scan them
     for host in hosts:
         print(f"[*] Starting port scan on {host}")
 
         open_ports = []
-        open_ports = scan_range(host, start_port, end_port)
+        open_ports = scan_range(host, start_port, end_port, timeout, max_threads)
         print(f"\n[+] Scan complete!")
         print(f"[+] Found {len(open_ports)} open ports:")
 
