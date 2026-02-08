@@ -52,14 +52,24 @@ def scan_port(host, port, timeout):
         # TODO: Try to connect to target:port
         s.connect((host, port))
 
+        banner = None
+        try:
+            banner = s.recv(1024).decode('utf-8', errors = 'ignore')
+        except:
+            # We don't want exceptions raised during recv/decode to
+            # lead to a False return (because if connect succeeds and recv
+            # fails e.g. due to timeout, our answer here is still true i.e
+            # the port is open)
+            pass
+
         # TODO: Close the socket
         s.close()
 
         # TODO: Return True if connection successful
-        return True
+        return True, banner
 
     except (socket.timeout, ConnectionRefusedError, OSError):
-        return False
+        return False, None
 
 
 def scan_range(host, start_port, end_port, timeout = 1.0, max_threads = 1):
@@ -72,9 +82,10 @@ def scan_range(host, start_port, end_port, timeout = 1.0, max_threads = 1):
         end_port (int): Ending port number
 
     Returns:
-        list: List of open ports
+        list: List of (open port, banner) tuples, banner may be None
+              if none was received
     """
-    open_ports = []
+    open_ports_with_banners = []
 
     print(f"[*] Scanning {host} from port {start_port} to {end_port}")
     print(f"[*] This may take a while...")
@@ -99,13 +110,14 @@ def scan_range(host, start_port, end_port, timeout = 1.0, max_threads = 1):
             port = future_port_map[future]
 
             try:
-                if future.result():
-                    open_ports.append(port)
+                rc, banner = future.result()
+                if rc:
+                    open_ports_with_banners.append((port, banner))
             except Exception as err:
                 print(f"future for port {port} reported exception {err} !")
                 pass
 
-    return open_ports
+    return open_ports_with_banners
 
 # Take the target ip and return a list of ips denoting all the hosts
 # that the received ip represents.
@@ -176,7 +188,7 @@ def main():
         start_port = int(split_ports_str[0])
         end_port = int(split_ports_str[1])
 
-        if not (start_port >= 1 and
+        if not (start_port >= 0 and
                 end_port <= 65535 and
                 start_port <= end_port):
             raise ValueError
@@ -205,14 +217,17 @@ def main():
     for host in hosts:
         print(f"[*] Starting port scan on {host}")
 
-        open_ports = []
-        open_ports = scan_range(host, start_port, end_port, timeout, max_threads)
+        open_ports_with_banners = []
+        open_ports_with_banners = scan_range(host, start_port, end_port, timeout, max_threads)
         print(f"\n[+] Scan complete!")
-        print(f"[+] Found {len(open_ports)} open ports:")
+        print(f"[+] Found {len(open_ports_with_banners)} open ports:")
 
-        for port in open_ports:
-            print(f"    Port {port}: open")
+        for port, banner in open_ports_with_banners:
+            print(f"    Port {port}: open", end = '')
+            if banner:
+                print(f", banner: {banner}")
 
+            print()
 
 if __name__ == "__main__":
     main()
