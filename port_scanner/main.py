@@ -22,6 +22,19 @@ import sys
 import argparse
 import ipaddress
 import concurrent.futures
+from enum import Enum
+import time
+
+class PortInfo:
+    class Status(Enum):
+        CLOSED = 0
+        OPEN = 1
+
+    def __init__(self, port):
+        self.port = port
+        self.status = self.Status.CLOSED.value
+        self.banner = None
+        self.time_ms = None
 
 def recv_banner(s):
     """
@@ -72,8 +85,10 @@ def scan_port(host, port, timeout):
         timeout (float): Connection timeout in seconds
 
     Returns:
-        bool: True if port is open, False otherwise
+        bool: PortInfo object if port is open, None otherwise
     """
+    port_info = PortInfo(port)
+
     try:
         # TODO: Create a socket
 
@@ -88,10 +103,16 @@ def scan_port(host, port, timeout):
         # TODO: Set timeout
         s.settimeout(timeout)
 
+        start_time = time.perf_counter();
         # TODO: Try to connect to target:port
         s.connect((host, port))
+        end_time = time.perf_counter();
+        port_info.time_ms = (end_time - start_time) * 1000
 
-        banner = recv_banner(s)
+        # connection successful
+        port_info.status = PortInfo.Status.OPEN.value
+
+        port_info.banner = recv_banner(s)
 
         try:
             s.close()
@@ -102,10 +123,10 @@ def scan_port(host, port, timeout):
             pass
 
         # TODO: Return True if connection successful
-        return True, banner
+        return port_info
 
     except (socket.timeout, ConnectionRefusedError, OSError):
-        return False, None
+        return None
 
 
 def scan_range(host, start_port, end_port, timeout = 1.0, max_threads = 1):
@@ -118,10 +139,9 @@ def scan_range(host, start_port, end_port, timeout = 1.0, max_threads = 1):
         end_port (int): Ending port number
 
     Returns:
-        list: List of (open port, banner) tuples, banner may be None
-              if none was received
+        list: List of PortInfo objects containing info about open ports,
     """
-    open_ports_with_banners = []
+    open_port_info_arr = []
 
     print(f"[*] Scanning {host} from port {start_port} to {end_port}")
     print(f"[*] This may take a while...")
@@ -146,14 +166,14 @@ def scan_range(host, start_port, end_port, timeout = 1.0, max_threads = 1):
             port = future_port_map[future]
 
             try:
-                rc, banner = future.result()
-                if rc:
-                    open_ports_with_banners.append((port, banner))
+                port_info = future.result()
+                if port_info:
+                    open_port_info_arr.append(port_info)
             except Exception as err:
                 print(f"future for port {port} reported exception {err} !")
                 pass
 
-    return open_ports_with_banners
+    return open_port_info_arr
 
 # Take the target ip and return a list of ips denoting all the hosts
 # that the received ip represents.
@@ -253,15 +273,16 @@ def main():
     for host in hosts:
         print(f"[*] Starting port scan on {host}")
 
-        open_ports_with_banners = []
-        open_ports_with_banners = scan_range(host, start_port, end_port, timeout, max_threads)
+        open_port_info_arr = []
+        open_port_info_arr = scan_range(host, start_port, end_port, timeout, max_threads)
         print(f"\n[+] Scan complete!")
-        print(f"[+] Found {len(open_ports_with_banners)} open ports:")
+        print(f"[+] Found {len(open_port_info_arr)} open ports:")
 
-        for port, banner in open_ports_with_banners:
-            print(f"    Port {port}: open", end = '')
-            if banner:
-                print(f", banner: {banner}")
+        for port_info in open_port_info_arr:
+            print(f"    Port {port_info.port}: open, "
+                  f"time to connect: {port_info.time_ms} ms", end = '')
+            if port_info.banner:
+                print(f", banner: {port_info.banner}")
 
             print()
 
