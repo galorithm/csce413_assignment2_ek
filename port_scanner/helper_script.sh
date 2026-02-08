@@ -1,9 +1,11 @@
+# List of ips to scan ports for (selected based
+# on the docker-compose.yml file)
 IP_LIST=(
         172.20.0.10
         172.20.0.11
         172.20.0.20
         172.20.0.21
-        172.20.0.20
+        172.20.0.22
         172.20.0.30
         172.20.0.40
 )
