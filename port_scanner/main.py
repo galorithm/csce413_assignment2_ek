@@ -85,9 +85,10 @@ def scan_port(host, port, timeout):
         timeout (float): Connection timeout in seconds
 
     Returns:
-        bool: PortInfo object if port is open, None otherwise
+        bool: PortInfo object indicating port status
     """
     port_info = PortInfo(port)
+    s = None
 
     try:
         # TODO: Create a socket
@@ -113,20 +114,16 @@ def scan_port(host, port, timeout):
         port_info.status = PortInfo.Status.OPEN.value
 
         port_info.banner = recv_banner(s)
-
-        try:
-            s.close()
-        except:
-            # Don't let this close failure lead to False return
-            # as successful connect means port is open so even if
-            # close fails, we should return true and not false
-            pass
-
-        # TODO: Return True if connection successful
-        return port_info
-
     except (socket.timeout, ConnectionRefusedError, OSError):
-        return None
+        pass
+    finally:
+        if s:
+            try:
+                s.close()
+            except:
+                pass
+
+    return port_info
 
 
 def scan_range(host, start_port, end_port, timeout = 1.0, max_threads = 1):
@@ -167,7 +164,7 @@ def scan_range(host, start_port, end_port, timeout = 1.0, max_threads = 1):
 
             try:
                 port_info = future.result()
-                if port_info:
+                if port_info.status == PortInfo.Status.OPEN.value:
                     open_port_info_arr.append(port_info)
             except Exception as err:
                 print(f"future for port {port} reported exception {err} !")
