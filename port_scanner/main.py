@@ -23,6 +23,45 @@ import argparse
 import ipaddress
 import concurrent.futures
 
+def recv_banner(s):
+    """
+    Try to receive a banner from the connected server.
+
+    Call this just after successfully connecting the socket.
+
+    Args:
+       s (socket object) - socket connected to server
+
+    Returns
+       banner string (max 1024 bytes) from the server, None
+       if was unable to receive any.
+
+       Doesn't throw an exception
+    """
+    banner = None
+    try:
+        # Covers services such as ssh, mysql which send us data
+        banner = s.recv(1024).decode('utf-8', errors = 'ignore')
+    except:
+        # catch the exception, don't let it terminate the function
+        pass
+
+    if banner:
+        return banner
+
+    # Server didn't send any banner by himself, try HTTP maybe ?
+    try:
+        s.sendall(b"GET / HTTP/1.1\r\n"
+                  b"Host: eshanvm\r\n"
+                  b"\r\n")
+        banner = s.recv(1024).decode('utf-8', errors= 'ignore')
+    except:
+        # catch the exception, don't let it terminate the app/function
+        pass
+
+    return banner
+
+
 def scan_port(host, port, timeout):
     """
     Scan a single port on the target host
@@ -52,18 +91,15 @@ def scan_port(host, port, timeout):
         # TODO: Try to connect to target:port
         s.connect((host, port))
 
-        banner = None
-        try:
-            banner = s.recv(1024).decode('utf-8', errors = 'ignore')
-        except:
-            # We don't want exceptions raised during recv/decode to
-            # lead to a False return (because if connect succeeds and recv
-            # fails e.g. due to timeout, our answer here is still true i.e
-            # the port is open)
-            pass
+        banner = recv_banner(s)
 
-        # TODO: Close the socket
-        s.close()
+        try:
+            s.close()
+        except:
+            # Don't let this close failure lead to False return
+            # as successful connect means port is open so even if
+            # close fails, we should return true and not false
+            pass
 
         # TODO: Return True if connection successful
         return True, banner
