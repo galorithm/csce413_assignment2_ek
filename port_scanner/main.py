@@ -20,13 +20,14 @@ TODO for students:
 import socket
 import sys
 import argparse
+import ipaddress
 
-def scan_port(target, port, timeout=1.0):
+def scan_port(host, port, timeout=1.0):
     """
     Scan a single port on the target host
 
     Args:
-        target (str): IP address or hostname to scan
+        host (str): IP address or hostname to scan
         port (int): Port number to scan
         timeout (float): Connection timeout in seconds
 
@@ -48,7 +49,7 @@ def scan_port(target, port, timeout=1.0):
         s.settimeout(timeout)
 
         # TODO: Try to connect to target:port
-        s.connect((target, port))
+        s.connect((host, port))
 
         # TODO: Close the socket
         s.close()
@@ -60,7 +61,7 @@ def scan_port(target, port, timeout=1.0):
         return False
 
 
-def scan_range(target, start_port, end_port):
+def scan_range(host, start_port, end_port):
     """
     Scan a range of ports on the target host
 
@@ -74,7 +75,7 @@ def scan_range(target, start_port, end_port):
     """
     open_ports = []
 
-    print(f"[*] Scanning {target} from port {start_port} to {end_port}")
+    print(f"[*] Scanning {host} from port {start_port} to {end_port}")
     print(f"[*] This may take a while...")
 
     # TODO: Implement the scanning logic
@@ -83,7 +84,7 @@ def scan_range(target, start_port, end_port):
 
     for port in range(start_port, end_port + 1):
         # TODO: Scan this port
-        rc = scan_port(target, port)
+        rc = scan_port(host, port)
 
         # TODO: If open, add to open_ports list
         if (rc):
@@ -93,6 +94,22 @@ def scan_range(target, start_port, end_port):
 
     return open_ports
 
+# Take the target ip and return a list of ips denoting all the hosts
+# that the received ip represents.
+#
+# - in case of ip like 192.168.9.10, its a single ip so an array
+#   consisting of 1 ip would be returned
+#
+# - in case of ip like 192.168.10.0/24 it denotes a subnet containing
+#   256 hosts with subnet mask 192.168.10.0, so an array consisting of
+#   all ips with that subnet mask would be returned.
+#
+# - raises ValueError if the specified ip_str is invalid, e.g
+#   192.186.10.0/8 is invalid mask as a valid 8 bit mask would have
+#   been 192.0.0.0
+def hosts_from_target_ip(target):
+    net = ipaddress.ip_network(target)
+    return [str(ip) for ip in net.hosts()]
 
 def main():
     """Main function"""
@@ -114,14 +131,25 @@ def main():
 
     cli_arg_parser.add_argument(
             "--ports",
-            default="1-1024",
+            default = "1-1024",
             help = 'range of ports to scan (default is 1 to 1024)'
+            )
+
+    cli_arg_parser.add_argument(
+            "--timeout",
+            default = "1",
+            help = "timeout to wait for connection to each port"
             )
 
     cli_args = cli_arg_parser.parse_args();
 
     # Parse the --target argument
     target = cli_args.target
+    try:
+        hosts = hosts_from_target_ip(target)
+    except ValueError:
+        print(f"[!] Bad target specification")
+        sys.exit(1)
 
     # Parse the --ports argument (by default 1-1024)
     try:
@@ -134,17 +162,29 @@ def main():
                 start_port <= end_port):
             raise ValueError
 
-    except Exception as err:
-        print(f"Bad port range: {cli_args.ports}")
+    except Exception:
+        print(f"[!] Bad port range: {cli_args.ports}")
+        sys.exit(1)
 
-    print(f"[*] Starting port scan on {target}")
+    # Parse the timeout argument
+    try:
+        timeout = float(cli_args.timeout)
+        if (timeout <= 0):
+            raise ValueError
+    except Exception:
+        print(f"[!] Bad timeout: {cli_args.timeout}")
+        sys.exit(1)
 
-    open_ports = scan_range(target, start_port, end_port)
+    for host in hosts:
+        print(f"[*] Starting port scan on {host}")
 
-    print(f"\n[+] Scan complete!")
-    print(f"[+] Found {len(open_ports)} open ports:")
-    for port in open_ports:
-        print(f"    Port {port}: open")
+        open_ports = []
+        open_ports = scan_range(host, start_port, end_port)
+        print(f"\n[+] Scan complete!")
+        print(f"[+] Found {len(open_ports)} open ports:")
+
+        for port in open_ports:
+            print(f"    Port {port}: open")
 
 
 if __name__ == "__main__":
