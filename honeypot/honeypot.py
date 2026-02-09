@@ -5,6 +5,7 @@ import logging
 import os
 import time
 import socket
+import urllib.parse
 
 LOG_PATH = "/app/logs/honeypot.log"
 
@@ -98,20 +99,52 @@ def page_not_found_404_response(request_info):
                     f"{response_body}")
     return response_str.encode()
 
+# If path is /file?path=resume.txt serve the resume file,
+# else 404 not found
+def dummy_file_response(request_info):
+    # Parse the query string to extract the path parameter
+    query_str = urllib.parse.urlparse(request_info.path).query
+    query_params = urllib.parse.parse_qs(query_str)
+
+    # Check if path exists in the query string and if it's resume.txt
+    if not ('path' in query_params and query_params['path'][0] == 'resume.txt'):
+        return page_not_found_404_response(request_info)
+
+    resume_data = """
+    Name: Eshan
+    Email: hibyegoodbye@tamu.edu
+    Phone: 420420420420
+    Education: Bachelor's in Computer Science
+    Skills: Programming
+    """
+
+    response_header = ("HTTP/1.1 200 OK\r\n"
+                       "Server: Apache/2.4.66 (Ubuntu)\r\n"
+                       "Content-Type: text/plain\r\n"
+                       f"Content-Length: {len(resume_data)}\r\n"
+                       "Connection: close\r\n")
+
+    response_str = (f"{response_header}"
+                     "\r\n"
+                     f"{resume_data}")
+    return response_str.encode()
+
 # Return a dummy response based on the received
 # RequestInfo object
 def dummy_response(request_info):
     body_content = None
-    if request_info.path == "/" or request_info.path == "/home":
+    if request_info.path == "/" or request_info.path.startswith("/home"):
         body_content = (
                 "Home Page of Eshan's personal website"
                 )
-    elif request_info.path == "/contact":
+    elif request_info.path.startswith("/contact"):
         body_content = (
                 "Phone number: 420420420420 <br/>"
                 "Address: Ujjain <br/>"
                 "Email: hibyegoodbye@tamu.edu<br/>"
                 )
+    elif request_info.path.startswith("/file"):
+        return dummy_file_response(request_info)
     else:
         return page_not_found_404_response(request_info)
 
