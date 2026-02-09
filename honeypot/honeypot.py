@@ -39,7 +39,12 @@ def run_honeypot():
 
 # Class to represent a received http request
 class RequestInfo:
-    def __init__(self, request_data):
+    # request_data is the data returned by recv called on socket
+    # connected to the client
+    def __init__(self, client_ip, client_port, request_data):
+        self.client_ip = client_ip
+        self.client_port = client_port
+
         self.raw_data = request_data
         self.data = request_data.decode(errors = 'ignore');
 
@@ -165,6 +170,27 @@ def dummy_response(request_info):
                     f"{response_body}")
     return response_str.encode()
 
+# Based on request info, detect and log attacks
+def detect_and_log_attacks(request_info):
+    if not request_info.path.startswith("/file"):
+        return
+
+    # The file end point may be vulnerable to directory traversal
+    # attack, see if attacker tries to do that
+    query_str = urllib.parse.urlparse(request_info.path).query
+    query_params = urllib.parse.parse_qs(query_str)
+
+    if not ('path' in query_params):
+        return page_not_found_404_response(request_info)
+
+    file_path = query_params["path"][0]
+    if ".." in file_path:
+        logger = logging.getLogger("Honeypot")
+        logger.warning(
+                f"[ATTACK ??] Potential DIRECTORY TRAVERSAL: from "
+                f"client {request_info.client_ip}:{request_info.client_port}"
+                f" for file {file_path} via end point {request_info.path}")
+
 # Handle a request received from the client
 def handle_client(client_connected_sock, client_addr):
     logger = logging.getLogger("Honeypot")
@@ -176,12 +202,14 @@ def handle_client(client_connected_sock, client_addr):
 
     try:
         request_data = client_connected_sock.recv(4096)
-        request_info = RequestInfo(request_data)
+        request_info = RequestInfo(client_ip, client_port, request_data)
 
         logger.info(f"  Method: {request_info.method}")
         logger.info(f"  Path: {request_info.path}")
         logger.info(f"  Header: \n{request_info.header}")
         if request_info.body: logger.info(f"  Body: \n{request_info.body}")
+
+        detect_and_log_attacks(request_info)
 
         response = dummy_response(request_info)
         client_connected_sock.sendall(response)
