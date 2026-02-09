@@ -12,21 +12,21 @@ DEFAULT_DELAY = 0.3
 
 def send_knock(target, port, delay):
     """Send a single knock to the target port."""
-    # TODO: Choose UDP or TCP knocks based on your design.
-    # Example TCP knock stub:
     try:
-        with socket.create_connection((target, port), timeout=1.0):
-            pass
-    except OSError:
-        pass
-    time.sleep(delay)
+        # Server is IPV4, UDP, so send a request for that
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.sendto(b"Ujjain is the city of Gods", (target, port))
 
+        printf(f"[+] Sent a knock to {target}, {port}")
+    except Exception as err:
+        print(f"[!] Exception while sending knock to {target}, {port}: {err}")
+
+    time.sleep(delay)
 
 def perform_knock_sequence(target, sequence, delay):
     """Send the full knock sequence."""
     for port in sequence:
         send_knock(target, port, delay)
-
 
 def check_protected_port(target, protected_port):
     """Try connecting to the protected port after knocking."""
