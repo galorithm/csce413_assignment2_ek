@@ -6,6 +6,7 @@ import logging
 import socket
 import time
 import subprocess
+import select
 
 DEFAULT_KNOCK_SEQUENCE = [1234, 5678, 9012]
 DEFAULT_PROTECTED_PORT = 2222
@@ -84,6 +85,8 @@ def get_knock_server_socket(port):
     # blocking on recv()
     s.setblocking(False)
 
+    return s
+
 # Reset the client state to indicate that the current knock is the client's
 # first knock in the knock sequence.
 #
@@ -99,6 +102,8 @@ def reset_client_state(client_state_map, client_ip):
 def handle_client_knock(*, client_state_map,
                         knocked_port, client_ip,
                         sequence, window_seconds, protected_port):
+    logging.info(f"Received a knock on port {knocked_port} from client {client_ip}")
+
     if client_ip not in client_state_map:
         # Client has never knocked before, add a default state for it
         reset_client_state(client_state_map, client_ip)
@@ -117,7 +122,7 @@ def handle_client_knock(*, client_state_map,
 
     knock_index += 1
     if knock_index == len(sequence):
-        logger.info(f"Client {client_ip} knocked complete sequence correctly "
+        logging.info(f"Client {client_ip} knocked complete sequence correctly "
                      "in time")
         open_protected_port(protected_port, client_ip)
 
@@ -152,7 +157,7 @@ def listen_for_knocks(sequence, window_seconds, protected_port):
                 knock_server_sockets, # wait for read on this list
                 [], # wait for write on this list
                 [], # wait for exception on this list
-                timeout = 1
+                1   # timeout
                 )
 
         for s in ready_sockets:

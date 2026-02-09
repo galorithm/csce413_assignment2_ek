@@ -17,7 +17,7 @@ def send_knock(target, port, delay):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.sendto(b"Ujjain is the city of Gods", (target, port))
 
-        printf(f"[+] Sent a knock to {target}, {port}")
+        print(f"[+] Sent a knock to {target}, {port}")
     except Exception as err:
         print(f"[!] Exception while sending knock to {target}, {port}: {err}")
 
