@@ -5,11 +5,11 @@ import argparse
 import logging
 import socket
 import time
+import subprocess
 
 DEFAULT_KNOCK_SEQUENCE = [1234, 5678, 9012]
 DEFAULT_PROTECTED_PORT = 2222
 DEFAULT_SEQUENCE_WINDOW = 10.0
-
 
 def setup_logging():
     logging.basicConfig(
@@ -19,11 +19,31 @@ def setup_logging():
     )
 
 
-def open_protected_port(protected_port):
-    """Open the protected port using firewall rules."""
-    # TODO: Use iptables/nftables to allow access to protected_port.
-    logging.info("TODO: Open firewall for port %s", protected_port)
+def open_protected_port(protected_port, client_ip):
+    """Open the protected port using firewall rules for client_ip."""
+    logging.info(f"Trying to open firewall for port {protected_port} "
+                 f"for client {client_ip}")
 
+    try:
+        iptables_cmd = [
+                # INPUT 1 to insert rule at top of input chain
+                # (first in precendence)
+                "iptables", "-I", "INPUT", "1",
+                            "-p", "tcp", # for tcp connections
+                            "-s", client_ip, # with source ip = client ip
+                            "--dport", str(protected_port), # destination port
+                            "-j", "ACCEPT" #  action to take: ACCEPT connection
+                ]
+
+        # True: raise exception if subprocess error code indicates failure
+        subprocess.run(iptables_cmd, check = True)
+
+        logging.info(f"Opened firewall for port {protected_port} "
+                     f"for client {client_ip}")
+    except Exception as err:
+        logging.error(f"Failed to open firewall port for port {protected_port}, "
+                      f"for client {client_ip}: "
+                      f"{err}")
 
 def close_protected_port(protected_port):
     """Close the protected port using firewall rules."""
