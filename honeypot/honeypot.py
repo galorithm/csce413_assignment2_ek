@@ -72,12 +72,53 @@ class RequestInfo:
             # It is valid for body to be empty
             return ""
 
+# return a 404 not found response
+def page_not_found_404_response(request_info):
+    response_body = """
+        <html>
+            <head><title>404 Not Found</title></head>
+            <body>
+                <h1>404 Not Found</h1>
+                <p>The requested URL {0} was not found on this server.</p>
+            </body>
+        </html>
+        """.format(request_info.path)  # Dynamic path in the message
+
+    response_header = """
+        HTTP/1.1 404 Not Found\r\n
+        Server: Apache/2.4.66 (Ubuntu)\r\n
+        Content-Type: text/html; charset=UTF-8\r\n
+        Content-Length: {0}\r\n
+        Connection: close\r\n
+        """.format(len(response_body))
+
+
+    response_str = (f"{response_header}"
+                     "\r\n"
+                    f"{response_body}")
+    return response_str.encode()
+
 # Return a dummy response based on the received
 # RequestInfo object
 def dummy_response(request_info):
+    body_content = None
+    if request_info.path == "/" or request_info.path == "/home":
+        body_content = (
+                "Home Page of Eshan's personal website"
+                )
+    elif request_info.path == "/contact":
+        body_content = (
+                "Phone number: 420420420420 <br/>"
+                "Address: Ujjain <br/>"
+                "Email: hibyegoodbye@tamu.edu<br/>"
+                )
+    else:
+        return page_not_found_404_response(request_info)
 
     response_body = ("<html>"
-                     "<body>Ujjain is the city of gods</body>"
+                       "<body>"
+                        f"{body_content}"
+                       "</body>"
                      "</html>")
 
     response_header = ("HTTP/1.1 200 OK\r\n"
