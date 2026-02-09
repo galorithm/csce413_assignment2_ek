@@ -31,7 +31,7 @@ def open_protected_port(protected_port, client_ip):
                 "iptables", "-I", "INPUT", "1",
                             "-p", "tcp", # for tcp connections
                             "-s", client_ip, # with source ip = client ip
-                            "--dport", str(protected_port), # destination port
+                            "--dport", f"{protected_port}", # destination port
                             "-j", "ACCEPT" #  action to take: ACCEPT connection
                 ]
 
@@ -45,11 +45,32 @@ def open_protected_port(protected_port, client_ip):
                       f"for client {client_ip}: "
                       f"{err}")
 
-def close_protected_port(protected_port):
+def close_protected_port(protected_port, client_ip):
     """Close the protected port using firewall rules."""
-    # TODO: Remove firewall rules for protected_port.
-    logging.info("TODO: Close firewall for port %s", protected_port)
+    logging.info(f"Trying to close firewall for port {protected_port} "
+                 f"for client {client_ip}")
 
+    try:
+        # This rule is to delete (-D) the INPUT rule specified while
+        # opening the protected port for the client in open_protected_port()
+        iptables_cmd = [
+                "iptables", "-D", "INPUT",
+                            "-p", "tcp",
+                            "-s", client_ip,
+                            "--dport", f"{protected_port}",
+                            "-j", "ACCEPT"
+                            ]
+
+        # check True to raise exceptions if the subprocess return
+        # code indicates failure
+        subprocess.run(iptables_cmd, check = True)
+
+        logging.info(f"Opened firewall for port {protected_port} "
+                     f"for client {client_ip}")
+    except Exception as err:
+        logging.error(f"Failed to close firewall port for port {protected_port}, "
+                      f"for client {client_ip}: "
+                      f"{err}")
 
 def listen_for_knocks(sequence, window_seconds, protected_port):
     """Listen for knock sequence and open the protected port."""
