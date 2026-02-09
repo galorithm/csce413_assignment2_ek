@@ -72,21 +72,105 @@ def close_protected_port(protected_port, client_ip):
                       f"for client {client_ip}: "
                       f"{err}")
 
+# Get a knock server binded to the recevied port
+def get_knock_server_socket(port):
+    # (IPV4 + UDP) knock server
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    # listen for connections on any interface for that port
+    s.bind(("0.0.0.0", port))
+
+    # operate in non blocking mode - we'll use select to wait instead of
+    # blocking on recv()
+    s.setblocking(False)
+
+# Reset the client state to indicate that the current knock is the client's
+# first knock in the knock sequence.
+#
+# In case no client state exists, the state will get added for the client.
+def reset_client_state(client_state_map, client_ip):
+    client_state_map[client_ip] = (0, time.time())
+
+# Handle client_ip's knock on knocked_port
+# and update client_state_map based on sequence, window_seconds
+# and if the client has completed knock sequence successfully in
+# time (based on window_seconds) then open the firewall's protected_port
+# for this particular client
+def handle_client_knock(*, client_state_map,
+                        knocked_port, client_ip,
+                        sequence, window_seconds, protected_port):
+    if client_ip not in client_state_map:
+        # Client has never knocked before, add a default state for it
+        reset_client_state(client_state_map, client_ip)
+
+    knock_index, last_knock_time = client_state_map[client_ip]
+    if time.time() - last_knock_time > window_seconds:
+        # knock time window has expired, client took too long between
+        # the last knock and this knock, reset his state so that the
+        # further analysis believes that this is his first valid knock
+        knock_index = 0
+
+    expected_port = sequence[knock_index]
+    if knocked_port != expected_port:
+        reset_client_state(client_state_map, client_ip)
+        return
+
+    knock_index += 1
+    if knock_index == len(sequence):
+        logger.info(f"Client {client_ip} knocked complete sequence correctly "
+                     "in time")
+        open_protected_port(protected_port, client_ip)
+
+        reset_client_state(client_state_map, client_ip)
+    else:
+        # Update the client's stored tate 
+        client_state_map[client_ip] = (knock_index, time.time())
+
 def listen_for_knocks(sequence, window_seconds, protected_port):
     """Listen for knock sequence and open the protected port."""
     logger = logging.getLogger("KnockServer")
     logger.info("Listening for knocks: %s", sequence)
     logger.info("Protected port: %s", protected_port)
 
-    # TODO: Create UDP or TCP listeners for each knock port.
-    # TODO: Track each source IP and its progress through the sequence.
-    # TODO: Enforce timing window per sequence.
-    # TODO: On correct sequence, call open_protected_port().
-    # TODO: On incorrect sequence, reset progress.
+    # Create UDP or TCP listeners for each knock port.
+    knock_server_sockets = []
+    for port in sequence:
+        s = get_knock_server_socket(port)
+        knock_server_sockets.append(s)
+        logger.info(f"UDP knock server listening on port: {port}")
+
+    # Map to track state of all knocking clients
+    client_state_map = {}
 
     while True:
-        time.sleep(1)
 
+        # select returns:
+        # rsockets, wsockets, xsockets
+        #
+        # we just care about rsockets
+        ready_sockets, _, _ = select.select(
+                knock_server_sockets, # wait for read on this list
+                [], # wait for write on this list
+                [], # wait for exception on this list
+                timeout = 1
+                )
+
+        for s in ready_sockets:
+            # Get the client's ip based on request
+            data, client_addr = s.recvfrom(1024)
+            client_ip = client_addr[0] # addr of form (ip, port)
+
+            # Get the port of the server which received the knock
+            server_addr = s.getsockname()
+            knocked_port = server_addr[1] # addr of form (ip, port)
+
+            handle_client_knock(
+                    client_state_map = client_state_map,
+                    knocked_port = knocked_port, client_ip = client_ip,
+                    sequence = sequence,
+                    window_seconds = window_seconds,
+                    protected_port = protected_port
+                    )
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Port knocking server starter")
