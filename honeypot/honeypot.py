@@ -216,7 +216,6 @@ def handle_client(client_connected_sock, client_addr):
     except Exception as err:
         logger.info(f"[EXCEPTION] while handling client "
                     f"{client_ip}:{client_port}, : {err}")
-        raise
     finally:
         client_connected_sock.close()
 
