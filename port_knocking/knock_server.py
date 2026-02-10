@@ -52,7 +52,7 @@ def close_protected_port(protected_port, client_ip):
                  f"for client {client_ip}")
 
     try:
-        # This rule is to delete (-D) the INPUT rule specified while
+        # This rule is to delete (-D) the rule specified while
         # opening the protected port for the client in open_protected_port()
         iptables_cmd = [
                 "iptables", "-D", "INPUT",
@@ -198,10 +198,30 @@ def parse_args():
     )
     return parser.parse_args()
 
+# Add a rule (at highest priority) to drop all packets received
+# at the proected_port to protect it from ALL clients
+def enable_default_port_protection(protected_port):
+    iptables_cmd = [
+                        # 1 for push (becomes highest priority rule)
+            "iptables", "-I", "INPUT", "1",
+                        "-p", "tcp", # protocol: tcp
+                        "--dport", f"{protected_port}", # destination port
+                        "-j", "DROP" # action to take: drop packets
+                       ]
+
+    # check True to raise exceptions if subprocess's error code indicates
+    # failure
+    subprocess.run(iptables_cmd, check = True) 
 
 def main():
     args = parse_args()
     setup_logging()
+
+    try:
+        enable_default_port_protection(args.protected_port)
+    except Exception as err:
+        raise SystemExit(f"Failed to default protect {args.protected_port}: "
+                         f"{err}")
 
     try:
         sequence = [int(port) for port in args.sequence.split(",")]
