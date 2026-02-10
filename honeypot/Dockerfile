@@ -7,6 +7,6 @@ COPY honeypot.py .
 # Create logs directory
 RUN mkdir -p /app/logs
 
-EXPOSE 22
+EXPOSE 80
 
 CMD ["python", "-u", "honeypot.py"]
