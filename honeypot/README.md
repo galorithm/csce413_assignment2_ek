@@ -1,16 +1,22 @@
-## Honeypot Starter Template
+### Honeypot Design
 
-This directory is a starter template for the honeypot portion of the assignment.
+1. An HTTP server honeypot.py which logs to a honeypot/logs/honeypot.log file
 
-### What you need to implement
-- Choose a protocol (SSH, HTTP, or multi-protocol).
-- Simulate a convincing service banner and responses.
-- Log connection metadata, authentication attempts, and attacker actions.
-- Store logs under `logs/` and include an `analysis.md` summary.
-- Update `honeypot.py` and `logger.py` (and add modules as needed) to implement the honeypot.
+2. The honeypot server is running on port 80 on the honeypot container, however to the host it is exposed against 8080
 
-### Getting started
-1. Implement your honeypot logic in `honeypot.py`.
-2. Wire logging in `logger.py` and record results in `logs/`.
-3. Summarize your findings in `analysis.md`.
-4. Run from the repo root with `docker-compose up honeypot`.
+3. After startup, the honeypot bind a listening socket to port 80 on 0.0.0.0 ip
+
+4. On receiving a client’s request, the honeypot:
+  - logs the client details
+  - parses the HTTP request and then logs its details (stored in a RequestInfo class object)
+  - /home or / end point exposed to return html indicating its my home page
+  - /contact end point exposed to return html containing my contact details
+  - /file?path=example.txt end point exposed to return file contents (only /file?path=resume.txt supported to return response containing my resume data)
+  - For other end points the honeypot returns a 404 not found response
+
+5. The honeypot is capable of detecting potential directory traversal attacks by monitoring what path user specifies in their `/file?path=<path here>` request. If the path contains .., the honeypot logs it as a warning inside the log file.
+
+6. After sending response to the client, honeypot disconnects from it and logs the disconnection.
+
+
+
